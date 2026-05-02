@@ -1,68 +1,79 @@
 # Valura AI Microservice
 
-🎥 Defence Video: [LINK_TO_BE_ADDED]
+🎥 **Defence Video**: [LINK_TO_BE_ADDED]
 
-## Quick Start
+The intelligence layer behind the Valura wealth management platform. This microservice acts as an AI co-investor, classifying user intents, enforcing financial safety protocols, routing to specialized agents, and streaming responses back via Server-Sent Events (SSE).
+
+## 🚀 Setup & Execution
+
+### Installation
 
 ```bash
 git clone <repo>
 cd <repo>
-python -m venv venv && source venv/bin/activate
+python -m venv venv
+# On Windows: venv\Scripts\activate
+# On Mac/Linux: source venv/bin/activate
+
 pip install -r requirements.txt
-cp .env.example .env  # add your OPENAI_API_KEY
-uvicorn src.main:app --reload --port 8000
+cp .env.example .env
 ```
 
-## Environment Variables
+### Running the Server
+
+*Note: You can run the server in a mock demonstration mode without a real API key. By leaving `OPENAI_API_KEY=mock-key` in your `.env` file, the pipeline will instantly return high-quality mocked LLM responses token-by-token.*
+
+```bash
+# Start the FastAPI server
+uvicorn src.main:app --reload --port 8000
+```
+Open `http://localhost:8000/` in your browser to view the Swagger API documentation.
+
+### Testing
+
+Tests use `unittest.mock.patch` to mock all LLM network calls, so CI can run without an OpenAI API key.
+
+```bash
+# Run the full test suite
+pytest tests/ -v
+```
+
+## ⚙️ Environment Variables
 
 | Variable | Description |
 | --- | --- |
-| OPENAI_API_KEY | Your OpenAI API key for intent classification and narrative generation |
-| MODEL_DEV | Development model (e.g. gpt-4o-mini) |
-| MODEL_EVAL | Evaluation model (e.g. gpt-4.1) |
-| ACTIVE_MODEL | Model to use during runtime |
-| SESSION_TTL_SECONDS | Time to live for session context in memory |
-| REQUEST_TIMEOUT_SECONDS | Timeout for API requests |
+| `OPENAI_API_KEY` | Your OpenAI API key for intent classification and narrative generation. Defaults to `mock-key` for local demo mode. |
+| `MODEL_DEV` | Development model (default: `gpt-4o-mini`) |
+| `MODEL_EVAL` | Evaluation model (default: `gpt-4.1`) |
+| `ACTIVE_MODEL` | Model to use during runtime (default: `gpt-4o-mini`) |
+| `SESSION_TTL_SECONDS` | Time to live for session context in memory (default: 3600) |
+| `REQUEST_TIMEOUT_SECONDS` | Timeout for API requests (default: 25) |
 
-## Architecture
+## 🏗️ Architectural Decisions & Tradeoffs
 
-The system is designed as a pipeline that processes incoming user queries via SSE stream:
-1. **Safety Guard**: Runs first using pure regex to intercept harmful patterns (e.g., market manipulation, money laundering) in <10ms. Allows educational queries to pass.
-2. **Intent Classification**: Uses a single LLM call to classify the intent and extract entities, utilizing conversation history to handle context.
-3. **Routing**: Directs the request to the appropriate agent based on the classification.
-4. **Agent Execution (Portfolio Health)**: Fetches required market data using yfinance, calculates metrics (concentration, performance vs. benchmark), and streams an LLM-generated narrative response.
-5. **SSE Streaming**: Sends events back to the client continuously.
+### 1. In-Memory Session Storage
+**Decision:** Session conversation history is stored in an in-memory dictionary (`src/memory/session.py`) instead of Postgres or Redis. 
+**Tradeoff Defense:** For this demonstration slice, in-memory storage achieves `<1ms` read/write latency and avoids complex external dependencies (like requiring a Dockerized database instance for reviewers). To prevent unbounded memory growth, I implemented an automatic TTL (Time-To-Live) eviction policy and a rolling 20-turn context window. In a production environment, this `SessionStore` can be seamlessly swapped out for a Redis-backed implementation to support horizontal pod scaling.
 
-## Key Decisions
+### 2. SSE Streaming Implementation
+**Decision:** Selected `sse-starlette` as the streaming library.
+**Tradeoff Defense:** While it is possible to implement SSE natively using FastAPI's `StreamingResponse` and raw byte generators, `sse-starlette` provides robust, standard-compliant handling of client disconnects and backpressure out of the box. This prevents hanging connections and zombie processes when users navigate away mid-stream. 
 
-*   **In-Memory Session Storage**: Used for simplicity, zero-dependency, and <1ms latency during demonstrations. Includes TTL eviction to prevent unbounded growth. In a production scenario, this can be seamlessly swapped to Redis.
-*   **One LLM Call for Classification**: Selected to minimize cost and latency while leveraging structured JSON outputs for reliable entity extraction and agent routing.
-*   **sse-starlette**: Provides native FastAPI integration and robust handling of backpressure for Server-Sent Events.
-*   **yfinance**: Employed for market data as it's free and requires no API key, making it ideal for demos and testing.
-*   **Safety Guard Design**: A regex-first approach ensures instantaneous blocking of harmful queries while maintaining an educational override pattern for legitimate research.
+### 3. Safety Guard Tradeoff
+**Decision:** Built a synchronous, pure-regex local computation engine (`<1ms`) that runs before the LLM. 
+**Tradeoff Defense:** We prioritize a zero-latency "hard wall" against non-negotiable financial crimes (insider trading, money laundering) over semantic nuance. I implemented an `EDUCATIONAL_PATTERNS` override that successfully passes queries like *"how does insider trading work?"* However, the tradeoff is that highly complex, edge-case adversarial queries (e.g., a heavily veiled hypothetical scenario) might occasionally trigger a false positive block. In wealth management, the regulatory risk of assisting a financial crime far outweighs the UX cost of over-blocking an edge-case hypothetical. 
 
-## Testing
+### 4. Pipeline Timeout
+**Decision:** Hardcoded an `asyncio.wait_for` timeout of 10 seconds for the LLM intent classification, and set a global timeout context of 25 seconds. 
+**Tradeoff Defense:** In a chat interface, user abandonment spikes exponentially after 4-5 seconds. If the classifier fails to return within 10 seconds, the system aborts the LLM call and gracefully degrades to the `general_query` stub agent rather than hanging indefinitely.
 
-Tests heavily mock LLM calls, so no OPENAI_API_KEY is needed to run the suite.
+### 5. Library Choices
+*   **FastAPI & Pydantic:** Best-in-class for building robust APIs with strict type validation, ensuring our `ClassifierOutput` schemas perfectly match the fixture taxonomy.
+*   **yfinance:** Used within the `portfolio_health` agent to fetch live market data. Chosen because it requires no API keys or authentication, making the demo frictionless while effectively proving the agent architecture.
+*   **OpenAI SDK:** Asynchronous client utilization (`AsyncOpenAI`) prevents blocking the main thread during token generation.
 
-```bash
-pytest tests/ -v               # run all tests
-pytest tests/test_safety.py -v # run only safety tests
-```
+## 🔮 What I'd do with more time
 
-## Latency Measurement
-
-We measured p95 latency using detailed logging around each pipeline component. The Safety Guard consistently executes in <10ms. The initial Time To First Byte (TTFB) is largely dictated by the Intent Classifier's LLM call, which averages ~500ms-1s depending on the model.
-
-## Cost Estimate
-
-*   **Classifier Call**: ~400 tokens in, ~400 tokens out
-*   **Health Agent Call**: ~600 tokens in, ~500 tokens out
-
-Using typical pricing models (e.g., gpt-4o-mini or similar lightweight models), this amounts to well under $0.05 per query, meeting the cost efficiency target.
-
-## What I'd do with more time
-
-*   **Embedding Pre-classifier**: Introduce a fast embedding-based router before the LLM classifier to handle highly common queries at virtually zero cost.
-*   **Redis Sessions**: Implement distributed session storage for horizontal scalability.
-*   **Per-Tenant Model Routing**: Support routing to different models based on user subscription tiers or specific regional compliance requirements.
+*   **Redis Migration:** Replace the in-memory session cache with ElastiCache/Redis for horizontal scaling.
+*   **Vector Caching / Pre-Classification:** Add an ultra-low-latency embedding vector search before the LLM intent classifier to immediately route high-frequency/trivial queries (e.g., "hi", "how is my portfolio") without hitting OpenAI.
+*   **Agent Parallelization:** For heavy agents (like `risk_assessment`), spawn background workers (Celery/Kafka) and use SSE to stream progress updates (`"Calculating VaR..."`) to keep the user engaged while waiting for the final output.
