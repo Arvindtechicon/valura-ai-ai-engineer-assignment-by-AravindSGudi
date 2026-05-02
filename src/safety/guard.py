@@ -5,7 +5,7 @@ from typing import Optional
 BLOCKED_PATTERNS = {
     "insider_trading": {
         "patterns": [
-            r"\buse\s+(insider|non.?public|private)\s+(info|information|tip|data)\b",
+            r"\bus(?:e|ing)\s+(insider|non.?public|private)\s+(info|information|tip|data)\b",
             r"\btrade\s+on\s+(insider|non.?public)\b",
             r"\bbefore\s+the\s+(announcement|earnings|merger|acquisition)\s+leak\b",
             r"\bi\s+(know|heard|got)\s+.{0,30}(not\s+public|insider|confidential)\b",
