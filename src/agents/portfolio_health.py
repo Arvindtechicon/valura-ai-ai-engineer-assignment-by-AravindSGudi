@@ -234,6 +234,21 @@ def _analyse_portfolio(holdings: list[dict], user_context: dict) -> PortfolioHea
 async def _generate_narrative(report: PortfolioHealthReport, user_query: str, user_context: dict) -> AsyncGenerator[str, None]:
     """Stream a plain-language narrative from the structured report."""
     
+    if settings.openai_api_key == "mock-key":
+        import asyncio
+        await asyncio.sleep(0.5)
+        mock_chunks = [
+            "Based on my analysis, ", "your portfolio ", "shows a solid foundation. ",
+            f"You have a total return of {report.performance.total_return_pct}% ",
+            f"compared to your benchmark return of {report.benchmark_comparison.benchmark_return_pct}%. ",
+            "However, you might want to review your concentration levels. ",
+            f"\n\n---\n*{DISCLAIMER}*"
+        ]
+        for chunk in mock_chunks:
+            yield chunk
+            await asyncio.sleep(0.1)
+        return
+        
     client = AsyncOpenAI(api_key=settings.openai_api_key)
     
     risk_profile = user_context.get("risk_profile", "moderate")

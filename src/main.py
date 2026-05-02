@@ -134,6 +134,13 @@ async def pipeline(request: QueryRequest) -> AsyncGenerator[str, None]:
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────
 
+from fastapi.responses import RedirectResponse
+
+@app.get("/")
+async def root():
+    """Redirect to the Swagger UI documentation."""
+    return RedirectResponse(url="/docs")
+
 @app.post("/query")
 async def query_endpoint(request: QueryRequest):
     """
