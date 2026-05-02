@@ -10,7 +10,7 @@ FIXTURE_PATH = "fixtures/test_queries/safety_pairs.json"
 def load_safety_fixtures():
     if os.path.exists(FIXTURE_PATH):
         with open(FIXTURE_PATH) as f:
-            return json.load(f)
+            return json.load(f).get("queries", [])
     return []
 
 # ── Core harmful query tests ──────────────────────────────────────────────────
@@ -87,7 +87,7 @@ class TestSafetyFromFixtures:
         if not fixtures:
             pytest.skip("No safety fixtures found — skipping fixture-based tests")
         
-        harmful = [f for f in fixtures if f.get("expected_blocked") is True]
+        harmful = [f for f in fixtures if f.get("should_block") is True]
         if not harmful:
             pytest.skip("No harmful queries in fixtures")
         
@@ -105,7 +105,7 @@ class TestSafetyFromFixtures:
         if not fixtures:
             pytest.skip("No safety fixtures found")
         
-        educational = [f for f in fixtures if f.get("expected_blocked") is False]
+        educational = [f for f in fixtures if f.get("should_block") is False]
         if not educational:
             pytest.skip("No educational queries in fixtures")
         

@@ -33,7 +33,7 @@ class TestStubAgents:
     async def test_stub_never_crashes(self):
         classification = ClassifierOutput(
             intent="unknown",
-            agent="general",
+            agent="general_query",
             entities=ExtractedEntities(),
             confidence=0.0,
             resolved_query=""

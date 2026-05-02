@@ -8,7 +8,7 @@ FIXTURE_PATH = "fixtures/test_queries/intent_classification.json"
 def load_classification_fixtures():
     if os.path.exists(FIXTURE_PATH):
         with open(FIXTURE_PATH) as f:
-            return json.load(f)
+            return json.load(f).get("queries", [])
     return []
 
 def normalise_ticker(t: str) -> str:
@@ -62,15 +62,21 @@ class TestClassifierWithMock:
     @pytest.mark.asyncio
     async def test_classifier_fallback_on_exception(self):
         """Classifier must not crash on LLM failure."""
-        with patch("src.classifier.intent.AsyncOpenAI") as mock_cls:
-            mock_client = AsyncMock()
-            mock_client.chat.completions.create = AsyncMock(side_effect=Exception("API down"))
-            mock_cls.return_value = mock_client
-            
-            from src.classifier.intent import classify_intent
-            result = await classify_intent("test query", "test-session-2")
-            assert result is not None
-            assert result.agent == "general"
+        from src.config import settings
+        original_key = settings.openai_api_key
+        settings.openai_api_key = "test-key-forces-failure"
+        try:
+            with patch("src.classifier.intent.AsyncOpenAI") as mock_cls:
+                mock_client = AsyncMock()
+                mock_client.chat.completions.create = AsyncMock(side_effect=Exception("API down"))
+                mock_cls.return_value = mock_client
+                
+                from src.classifier.intent import classify_intent
+                result = await classify_intent("test query", "test-session-2")
+                assert result is not None
+                assert result.agent == "general_query"
+        finally:
+            settings.openai_api_key = original_key
 
 class TestClassifierAccuracyFromFixtures:
     @pytest.mark.asyncio
@@ -104,20 +110,26 @@ class TestClassifierAccuracyFromFixtures:
                 "resolved_query": item.get("query", "")
             })
             
-            with patch("src.classifier.intent.AsyncOpenAI") as mock_cls:
-                mock_client = AsyncMock()
-                mock_client.chat.completions.create = AsyncMock(
-                    return_value=MagicMock(
-                        choices=[MagicMock(message=MagicMock(content=mock_output))]
+            from src.config import settings
+            original_key = settings.openai_api_key
+            settings.openai_api_key = "test-key-forces-failure"
+            try:
+                with patch("src.classifier.intent.AsyncOpenAI") as mock_cls:
+                    mock_client = AsyncMock()
+                    mock_client.chat.completions.create = AsyncMock(
+                        return_value=MagicMock(
+                            choices=[MagicMock(message=MagicMock(content=mock_output))]
+                        )
                     )
-                )
-                mock_cls.return_value = mock_client
-                
-                from src.classifier.intent import classify_intent
-                result = await classify_intent(item["query"], f"test-{item.get('id', correct)}")
-                
-                if result.agent == expected_agent:
-                    correct += 1
+                    mock_cls.return_value = mock_client
+                    
+                    from src.classifier.intent import classify_intent
+                    result = await classify_intent(item["query"], f"test-{item.get('id', correct)}")
+                    
+                    if result.agent == expected_agent:
+                        correct += 1
+            finally:
+                settings.openai_api_key = original_key
         
         accuracy = correct / total if total > 0 else 0
         assert accuracy >= 0.85, f"Routing accuracy {accuracy:.1%} below 85% threshold"
