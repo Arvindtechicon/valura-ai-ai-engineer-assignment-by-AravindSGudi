@@ -11,28 +11,29 @@ SYSTEM_PROMPT = """You are an intent classifier for Valura, a wealth management 
 
 Given a user query and conversation history, return a single JSON object with these fields:
 - intent: brief description of what the user wants (string)
-- agent: one of exactly: portfolio_health, market_research, investment_strategy, financial_calculator, risk_assessment, recommendations, predictive_analysis, support, general
-- entities: object with optional fields: tickers (array of uppercase strings), sectors (array), topics (array), amount (number), currency (string), period_years (number), rate (number)
+- agent: one of exactly: portfolio_health, market_research, investment_strategy, financial_planning, financial_calculator, risk_assessment, product_recommendation, predictive_analysis, customer_support, general_query
+- entities: object with optional fields: tickers (array of uppercase strings), sectors (array), topics (array), amount (number), currency (string), period_years (number), rate (number), frequency (string), horizon (string), time_period (string), index (string), action (string), goal (string)
 - safety_note: null or a brief note if the query touches sensitive but not blocked territory (informational only)
 - confidence: float 0-1
-- resolved_query: the user's query with any pronoun/reference resolved using conversation history (e.g. "what about Apple?" after discussing Microsoft becomes "Tell me about Apple stock similar to what we discussed about Microsoft")
+- resolved_query: the user's query with any pronoun/reference resolved using conversation history
 
 Agent selection rules:
-- portfolio_health: any question about the user's own portfolio status, health, diversification, performance, "how am I doing", "check my portfolio"
+- portfolio_health: any question about the user's own portfolio status, health, diversification, performance
 - market_research: questions about specific stocks, sectors, market news, company fundamentals
 - investment_strategy: how to invest, allocation strategy, asset class selection, rebalancing strategy
-- financial_calculator: compound interest, returns calculation, SIP, mortgage, tax calculations
-- risk_assessment: risk profile questions, volatility, drawdown, VaR, beta analysis
-- recommendations: "what should I buy/sell", personalized buy/sell suggestions
+- financial_planning: long-term planning, retirement, goals, savings rate
+- financial_calculator: compound interest, returns calculation, SIP, mortgage, tax calculations, FX conversion
+- risk_assessment: risk profile questions, volatility, drawdown, VaR, beta analysis, what-if scenarios
+- product_recommendation: recommend specific products/funds matching user profile
 - predictive_analysis: price predictions, forecasts, future performance
-- support: account issues, platform help, non-financial questions
-- general: anything else
+- customer_support: account issues, platform help, non-financial questions
+- general_query: anything else, educational, conversational, definitions
 
 Return ONLY valid JSON. No markdown. No explanation."""
 
 FALLBACK_OUTPUT = ClassifierOutput(
     intent="unknown",
-    agent="general",
+    agent="general_query",
     entities=ExtractedEntities(),
     confidence=0.0,
     resolved_query="",
@@ -54,6 +55,17 @@ async def classify_intent(
         history_str = f"\n\nConversation history:\n{history_str}"
     
     user_message = f"Query: {query}{history_str}"
+    
+    if settings.openai_api_key == "mock-key":
+        import asyncio
+        await asyncio.sleep(0.5)
+        return ClassifierOutput(
+            intent="portfolio health check",
+            agent="portfolio_health",
+            entities=ExtractedEntities(),
+            confidence=0.99,
+            resolved_query=query
+        )
     
     client = AsyncOpenAI(api_key=settings.openai_api_key)
     

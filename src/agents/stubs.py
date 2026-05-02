@@ -5,12 +5,13 @@ import json
 STUB_AGENTS = {
     "market_research",
     "investment_strategy",
+    "financial_planning",
     "financial_calculator",
     "risk_assessment",
-    "recommendations",
+    "product_recommendation",
     "predictive_analysis",
-    "support",
-    "general"
+    "customer_support",
+    "general_query"
 }
 
 async def run_stub_agent(

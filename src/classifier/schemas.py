@@ -9,6 +9,12 @@ class ExtractedEntities(BaseModel):
     currency: Optional[str] = None
     period_years: Optional[float] = None
     rate: Optional[float] = None
+    frequency: Optional[str] = None
+    horizon: Optional[str] = None
+    time_period: Optional[str] = None
+    index: Optional[str] = None
+    action: Optional[str] = None
+    goal: Optional[str] = None
     
 class ClassifierOutput(BaseModel):
     intent: str
@@ -16,12 +22,13 @@ class ClassifierOutput(BaseModel):
         "portfolio_health",
         "market_research", 
         "investment_strategy",
+        "financial_planning",
         "financial_calculator",
         "risk_assessment",
-        "recommendations",
+        "product_recommendation",
         "predictive_analysis",
-        "support",
-        "general"
+        "customer_support",
+        "general_query"
     ]
     entities: ExtractedEntities
     safety_note: Optional[str] = None  # informational only, does not block
