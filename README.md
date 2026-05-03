@@ -1,6 +1,6 @@
 # Valura AI Microservice
 
-🎥 **Defence Video**: [https://drive.google.com/file/d/1ZZC9aRv9xH5ORNLDqZl0SzFhptgk2hWR/view?usp=sharing]
+🎥 **Defence Video**: https://drive.google.com/drive/folders/1MzKLEwn9gvhzYQ4UT-8ACLlD31FtKBWY?usp=sharing
 
 The intelligence layer behind the Valura wealth management platform. This microservice acts as an AI co-investor, classifying user intents, enforcing financial safety protocols, routing to specialized agents, and streaming responses back via Server-Sent Events (SSE).
 
